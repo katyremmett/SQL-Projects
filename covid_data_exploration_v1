@@ -1,0 +1,182 @@
+SELECT
+location,date, total_cases, new_cases, total_deaths, population
+FROM `my-data-project-11012022.covid_data.deaths` 
+ORDER BY 1,2
+
+--Looking at Total Cases vs Total Deaths
+--Shows likelihood of dying if you contract covid in your country
+
+SELECT
+location, date, total_cases, total_deaths, (total_deaths/total_cases)*100 AS death_percentage
+FROM `my-data-project-11012022.covid_data.deaths` 
+WHERE location = "United States"
+ORDER BY 1,2
+
+
+--Looking at Total Cases vs Population
+--Shows what percentage of population got Covid
+
+SELECT
+location,date, total_cases, population, (total_cases/population)*100 AS total_cases_by_pop
+FROM `my-data-project-11012022.covid_data.deaths` 
+WHERE location = "United States"
+ORDER BY 1,2
+
+-- Looking at countries with highest infection rate compared to population
+SELECT location, population, 
+MAX(total_cases) AS highest_infection_count, 
+MAX((total_cases/population))*100 AS percent_population_infected
+FROM `my-data-project-11012022.covid_data.deaths` 
+GROUP BY 1,2 
+ORDER BY percent_population_infected DESC
+
+-- Showing countries with highest death count per population
+Select 
+location, MAX(total_deaths) AS total_death_count
+From `my-data-project-11012022.covid_data.deaths` 
+WHERE continent is not NULL
+GROUP BY 1
+ORDER BY total_death_count desc
+
+-- Showing data by continent
+Select 
+continent, MAX(total_deaths) AS total_death_count
+From `my-data-project-11012022.covid_data.deaths` 
+WHERE continent is not NULL
+GROUP BY 1
+ORDER BY total_death_count desc
+
+--Total cases by location count
+Select Location, Population, MAX(total_cases) as HighestInfectionCount,  Max((total_cases/population))*100 as PercentPopulationInfected
+From `my-data-project-11012022.covid_data.deaths`
+Group by Location, Population
+order by PercentPopulationInfected desc
+
+--Total case count by location and date
+Select Location, Population, date, MAX(total_cases) as HighestInfectionCount,  Max((total_cases/population))*100 as PercentPopulationInfected
+From `my-data-project-11012022.covid_data.deaths`
+Group by Location, Population, date
+order by PercentPopulationInfected desc
+
+-- Showing global data by date
+Select 
+SUM(new_cases) AS total_cases,
+SUM(new_deaths) AS total_deaths,
+SUM(new_deaths)/SUM(new_cases)*100 AS death_percentage
+From `my-data-project-11012022.covid_data.deaths` 
+Where continent is not NULL
+--GROUP BY date
+ORDER BY 1,2
+
+-- Showing global data total
+Select 
+SUM(new_cases) AS total_cases,
+SUM(new_deaths) AS total_deaths,
+SUM(new_deaths)/SUM(new_cases)*100 AS death_percentage
+From `my-data-project-11012022.covid_data.deaths` 
+Where continent is not NULL
+--GROUP BY date
+ORDER BY 1,2
+
+Select location, SUM(new_deaths) as TotalDeathCount
+From `my-data-project-11012022.covid_data.deaths` 
+--Where location like '%states%'
+Where continent is null 
+and location not in ('World', 'European Union', 'International', 'High income', 'Upper middle income', 'Lower middle income', 'Low income', 'Oceania')
+Group by location
+order by TotalDeathCount desc
+
+
+--Looking at total population vs vaccinations
+Select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations
+From 
+  `my-data-project-11012022.covid_data.deaths` dea
+JOIN   
+  `my-data-project-11012022.covid_data.vaccinations` vac
+    ON dea.location = vac.location
+    and dea.date = vac.date
+    and dea.continent = vac.continent
+WHERE dea.continent is not NULL
+order by 2,3
+
+--Looking at total population vs vaccinations
+Select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations,
+  SUM(vac.new_vaccinations) OVER (partition by dea.location ORDER BY dea.location, dea.date) AS rolling_vaccinations_total
+From 
+  `my-data-project-11012022.covid_data.deaths` dea
+JOIN   
+  `my-data-project-11012022.covid_data.vaccinations` vac
+    ON dea.location = vac.location
+    and dea.date = vac.date
+    and dea.continent = vac.continent
+WHERE dea.continent is not NULL
+order by 2,3
+
+
+--USE CTE
+WITH PopvsVac AS 
+(
+  Select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations,
+    SUM(vac.new_vaccinations) OVER (partition by dea.location ORDER BY dea.location, dea.date) AS rolling_vaccinations_total
+  From 
+    `my-data-project-11012022.covid_data.deaths` dea
+  JOIN   
+   `my-data-project-11012022.covid_data.vaccinations` vac
+     ON dea.location = vac.location
+      and dea.date = vac.date
+      and dea.continent = vac.continent
+  WHERE dea.continent is not NULL
+--order by 2,3
+)
+Select *, (Rolling_vaccinations_total/population)*100
+  From PopvsVac
+
+-- vaccinations vs. booster
+
+WITH VacvsBoost AS 
+(
+  Select SUM(total_vaccinations) AS vaccinations, SUM(total_boosters) AS boosters 
+  From 
+    `my-data-project-11012022.covid_data.vaccinations`
+)
+Select *, (VacvsBoost.boosters/VacvsBoost.vaccinations)*100 AS percent_of_vac_recieved_boosters
+  From VacvsBoost
+
+
+-- Looking at total vaccinations, total boosters, and total populations
+
+Select dea.continent, dea.location, dea.date, dea.population, vac.total_vaccinations, vac.total_boosters,
+  SUM(vac.total_boosters) OVER (partition by dea.location ORDER BY dea.location, dea.date) AS rolling_booster_total
+From 
+  `my-data-project-11012022.covid_data.deaths` dea
+JOIN   
+  `my-data-project-11012022.covid_data.vaccinations` vac
+    ON dea.location = vac.location
+    and dea.date = vac.date
+    and dea.continent = vac.continent
+WHERE dea.continent is not NULL
+order by 2,3
+
+--Total deaths vs. total vaccinations 
+
+Select dea.continent, dea.location, dea.date, dea.population, dea.total_deaths, vac.total_vaccinations 
+From 
+  `my-data-project-11012022.covid_data.deaths` dea
+JOIN   
+  `my-data-project-11012022.covid_data.vaccinations` vac
+    ON dea.location = vac.location
+    and dea.date = vac.date
+    and dea.continent = vac.continent
+WHERE dea.continent is not NULL    
+ORDER BY total_vaccinations DESC
+
+--Total vaccinations by population
+Select dea.location, dea.date, dea.population, vac.total_vaccinations, MAX(dea.total_cases) AS HighestInfectionCount, MAX(Round(vac.total_vaccinations/dea.population,2))*100 AS PercentPopulationVaccinated
+From 
+  `my-data-project-11012022.covid_data.deaths` dea
+JOIN   
+  `my-data-project-11012022.covid_data.vaccinations` vac
+    ON dea.location = vac.location
+    and dea.date = vac.date
+GROUP BY location, population, date, total_vaccinations    
+ORDER BY PercentPopulationVaccinated DESC
